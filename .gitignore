@@ -1,0 +1,62 @@
+# =========================
+# Android / Gradle
+# =========================
+*.apk
+*.aab
+*.aar
+*.dex
+*.class
+
+# Build outputs
+/build
+*/build/
+
+# Gradle
+.gradle/
+gradle-app.setting
+local.properties
+
+# =========================
+# Android Studio / IntelliJ
+# =========================
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Navigation & UI state
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+
+# =========================
+# Native build
+# =========================
+.externalNativeBuild/
+.cxx/
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# OS generated files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Screenshots & captures
+# =========================
+/captures/
+
+# =========================
+# Security (VERY IMPORTANT)
+# =========================
+*.jks
+*.keystore
+google-services.json
