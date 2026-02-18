@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
             RedStreamTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Greeting(
-                        name = "Android",
+                        name = "Team RedStream",
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
