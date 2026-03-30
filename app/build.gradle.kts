@@ -2,16 +2,17 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.google.services)
+    alias(libs.plugins.hilt.android)
+    kotlin("kapt")
 }
 
 android {
-    namespace = "edu.project.redstream"
-    compileSdk {
-        version = release(36)
-    }
+    namespace = "edu.project.redstream"          // ← your package name kept
+    compileSdk = 36                               // ← fixed syntax (was release(36))
 
     defaultConfig {
-        applicationId = "edu.project.redstream"
+        applicationId = "edu.project.redstream"  // ← your package name kept
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -42,6 +43,7 @@ android {
 }
 
 dependencies {
+    // Existing — unchanged
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -57,4 +59,18 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
+
+    // Hilt
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
+    implementation(libs.hilt.navigation.compose)
+
+    // Navigation
+    implementation(libs.navigation.compose)
+    implementation(libs.androidx.compose.material.icons.extended)
 }
