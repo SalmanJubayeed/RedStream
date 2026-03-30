@@ -29,8 +29,8 @@ fun SignUpScreen(
     val uiState  by viewModel.uiState.collectAsState()
 
     LaunchedEffect(uiState) {
-        if (uiState is AuthUiState.Success)
-            onSuccess((uiState as AuthUiState.Success).uid)
+        if (uiState is AuthUiState.SignUpSuccess)
+            onSuccess((uiState as AuthUiState.SignUpSuccess).uid)
     }
 
     Column(

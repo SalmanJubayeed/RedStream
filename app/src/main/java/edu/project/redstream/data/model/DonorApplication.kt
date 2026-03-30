@@ -9,5 +9,7 @@ data class DonorApplication(
     val donorId: String = "",
     val status: String = "PENDING",
     val message: String = "",
-    @ServerTimestamp val createdAt: Timestamp? = null
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    val donationDeadlineAt: Timestamp? = null
+
 )

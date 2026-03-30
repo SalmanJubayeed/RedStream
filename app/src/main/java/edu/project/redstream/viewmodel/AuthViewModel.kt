@@ -15,7 +15,9 @@ import javax.inject.Inject
 sealed class AuthUiState {
     object Idle : AuthUiState()
     object Loading : AuthUiState()
-    data class Success(val uid: String) : AuthUiState()
+    data class SignUpSuccess(val uid: String) : AuthUiState()  // ← new signup only
+    data class Success(val uid: String) : AuthUiState()        // ← sign in only
+    data class NeedsProfile(val uid: String) : AuthUiState()   // ← missing profile
     data class Error(val message: String) : AuthUiState()
 }
 
@@ -39,9 +41,9 @@ class AuthViewModel @Inject constructor(
             _uiState.value = AuthUiState.Loading
             runCatching { authRepo.signUp(email, password) }
                 .onSuccess { uid ->
-                    // Don't navigate yet — wait for role selection
-                    // Just store the uid temporarily
-                    _uiState.value = AuthUiState.Success(uid)
+                    // SignUpSuccess — only SignUpScreen listens to this
+                    // MainActivity ignores it completely
+                    _uiState.value = AuthUiState.SignUpSuccess(uid)
                 }
                 .onFailure { e ->
                     _uiState.value = AuthUiState.Error(e.message ?: "Sign up failed")
@@ -54,12 +56,18 @@ class AuthViewModel @Inject constructor(
             _uiState.value = AuthUiState.Loading
             runCatching { authRepo.signIn(email, password) }
                 .onSuccess { uid ->
-                    if (userRepo.userExists(uid))
+                    val exists = userRepo.userExists(uid)
+                    if (exists) {
+                        // Success — MainActivity handles navigation
                         _uiState.value = AuthUiState.Success(uid)
-                    else
-                        _uiState.value = AuthUiState.Error("No profile found — please sign up")
+                    } else {
+                        // No Firestore doc — send to profile setup
+                        _uiState.value = AuthUiState.NeedsProfile(uid)
+                    }
                 }
-                .onFailure { e -> _uiState.value = AuthUiState.Error(e.message ?: "Sign in failed") }
+                .onFailure { e ->
+                    _uiState.value = AuthUiState.Error(e.message ?: "Sign in failed")
+                }
         }
     }
 
@@ -74,21 +82,21 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
             val user = User(
-                uid = uid,
-                role = role,
-                name = name,
-                bloodGroup = bloodGroup,
+                uid          = uid,
+                role         = role,
+                name         = name,
+                bloodGroup   = bloodGroup,
                 locationText = location,
-                email = authRepo.currentUser?.email ?: ""
+                email        = authRepo.currentUser?.email ?: ""
             )
             runCatching { userRepo.createUser(user) }
                 .onSuccess {
-                    // Confirm the write succeeded before navigating
                     val saved = userRepo.userExists(uid)
                     if (saved) {
+                        // Profile saved — now use Success so MainActivity routes correctly
                         _uiState.value = AuthUiState.Success(uid)
                     } else {
-                        _uiState.value = AuthUiState.Error("Failed to save profile — check connection")
+                        _uiState.value = AuthUiState.Error("Failed to save — check connection")
                     }
                 }
                 .onFailure { e ->

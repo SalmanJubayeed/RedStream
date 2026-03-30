@@ -12,20 +12,28 @@ import edu.project.redstream.ui.auth.SignUpScreen
 import edu.project.redstream.ui.auth.WelcomeScreen
 import edu.project.redstream.ui.donor.DonorHomeScreen
 import edu.project.redstream.ui.profile.ProfileScreen
-import edu.project.redstream.ui.recipient.RecipientHomeScreen
+import edu.project.redstream.ui.recipient.CreateRequestScreen
+import edu.project.redstream.ui.recipient.MyRequestsScreen
+import edu.project.redstream.ui.recipient.RequestDetailScreen
 import edu.project.redstream.viewmodel.AuthViewModel
 
 sealed class Route(val path: String) {
-    object Welcome       : Route("welcome")
-    object SignIn        : Route("sign_in")
-    object SignUp        : Route("sign_up")
-    object RoleSelect    : Route("role_select/{uid}") {
+    object Welcome        : Route("welcome")
+    object SignIn         : Route("sign_in")
+    object SignUp         : Route("sign_up")
+    object RoleSelect     : Route("role_select/{uid}") {
         fun withUid(uid: String) = "role_select/$uid"
     }
-    object DonorHome     : Route("donor_home")
-    object RecipientHome : Route("recipient_home")
-    object AdminHome     : Route("admin_home")
-    object Profile       : Route("profile")
+    object DonorHome      : Route("donor_home")
+    object RecipientHome  : Route("recipient_home")
+    object AdminHome      : Route("admin_home")
+    object Profile        : Route("profile")
+    // ── Week 2 new routes ──
+    object CreateRequest  : Route("create_request")
+    object MyRequests     : Route("my_requests")
+    object RequestDetail  : Route("request_detail/{requestId}") {
+        fun withId(id: String) = "request_detail/$id"
+    }
 }
 
 @Composable
@@ -42,14 +50,12 @@ fun RedStreamNavHost(
                 onSignUp = { navController.navigate(Route.SignUp.path) }
             )
         }
-
         composable(Route.SignIn.path) {
             SignInScreen(
                 viewModel = authViewModel,
                 onGoToSignUp = { navController.navigate(Route.SignUp.path) }
             )
         }
-
         composable(Route.SignUp.path) {
             SignUpScreen(
                 viewModel = authViewModel,
@@ -61,18 +67,25 @@ fun RedStreamNavHost(
                 }
             )
         }
-
         composable("role_select/{uid}") { backStack ->
             val uid = backStack.arguments?.getString("uid") ?: ""
-            RoleSelectScreen(
-                uid = uid,
-                viewModel = authViewModel
-            )
+            RoleSelectScreen(uid = uid, viewModel = authViewModel)
         }
-
         composable(Route.DonorHome.path)     { DonorHomeScreen(navController) }
-        composable(Route.RecipientHome.path) { RecipientHomeScreen(navController) }
+        composable(Route.RecipientHome.path) { MyRequestsScreen(navController) }
         composable(Route.AdminHome.path)     { AdminHomeScreen(navController) }
         composable(Route.Profile.path)       { ProfileScreen(navController, authViewModel) }
+
+        // ── Week 2 ──────────────────────────────────────────────────────────
+        composable(Route.CreateRequest.path) {
+            CreateRequestScreen(navController)
+        }
+        composable(Route.MyRequests.path) {
+            MyRequestsScreen(navController)
+        }
+        composable("request_detail/{requestId}") { backStack ->
+            val requestId = backStack.arguments?.getString("requestId") ?: ""
+            RequestDetailScreen(navController, requestId)
+        }
     }
 }

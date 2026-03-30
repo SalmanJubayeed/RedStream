@@ -22,16 +22,26 @@ class ProfileViewModel @Inject constructor(
         return userRepo.getUserFlow(uid)
     }
 
-    // ← THIS is now INSIDE the class, not after it
     fun updateProfile(name: String, location: String) {
-        val uid = auth.currentUser?.uid ?: return
+        val uid   = auth.currentUser?.uid ?: return
+        val email = auth.currentUser?.email ?: ""
         viewModelScope.launch {
+            // merge = creates doc if missing, updates fields if exists
             userRepo.updateProfile(
                 uid, mapOf(
                     "name"         to name,
-                    "locationText" to location
+                    "locationText" to location,
+                    "email"        to email,
+                    "uid"          to uid
                 )
             )
+        }
+    }
+
+    fun updateRole(role: String) {
+        val uid = auth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            userRepo.updateProfile(uid, mapOf("role" to role))
         }
     }
 }

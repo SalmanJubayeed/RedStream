@@ -33,18 +33,28 @@ class MainActivity : ComponentActivity() {
                 val uiState by authViewModel.uiState.collectAsState()
                 val scope = rememberCoroutineScope()
 
-                val startDestination = if (authViewModel.currentUid != null)
-                    Route.DonorHome.path
-                else
-                    Route.Welcome.path
+                // Always start at Welcome — LaunchedEffect below
+                // will immediately redirect if already signed in
+                RedStreamNavHost(
+                    navController    = navController,
+                    startDestination = Route.Welcome.path,
+                    authViewModel    = authViewModel
+                )
 
-                // When auth succeeds → fetch role → navigate to correct home
-                LaunchedEffect(uiState) {
-                    if (uiState is AuthUiState.Success) {
-                        val uid = (uiState as AuthUiState.Success).uid
-                        scope.launch {
-                            val user = userRepository.getUser(uid)
-                            val destination = when (user?.toRole()) {
+                // On first launch, check if already signed in
+                LaunchedEffect(Unit) {
+                    val uid = authViewModel.currentUid
+                    if (uid != null) {
+                        // Already signed in — check profile exists
+                        val user = userRepository.getUser(uid)
+                        if (user == null) {
+                            // Auth exists but no Firestore doc → setup profile
+                            navController.navigate(Route.RoleSelect.withUid(uid)) {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        } else {
+                            // Profile exists → go to correct home
+                            val destination = when (user.toRole()) {
                                 UserRole.RECIPIENT -> Route.RecipientHome.path
                                 UserRole.ADMIN     -> Route.AdminHome.path
                                 else               -> Route.DonorHome.path
@@ -52,16 +62,46 @@ class MainActivity : ComponentActivity() {
                             navController.navigate(destination) {
                                 popUpTo(0) { inclusive = true }
                             }
-                            authViewModel.clearState()
                         }
                     }
+                    // If uid is null — stay on Welcome screen, do nothing
                 }
 
-                RedStreamNavHost(
-                    navController = navController,
-                    startDestination = startDestination,
-                    authViewModel = authViewModel
-                )
+                // Watch auth state changes during the session
+                LaunchedEffect(uiState) {
+                    when (uiState) {
+
+                        is AuthUiState.Success -> {
+                            val uid = (uiState as AuthUiState.Success).uid
+                            scope.launch {
+                                val user = userRepository.getUser(uid)
+                                val destination = when (user?.toRole()) {
+                                    UserRole.RECIPIENT -> Route.RecipientHome.path
+                                    UserRole.ADMIN     -> Route.AdminHome.path
+                                    else               -> Route.DonorHome.path
+                                }
+                                navController.navigate(destination) {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                                authViewModel.clearState()
+                            }
+                        }
+
+                        is AuthUiState.NeedsProfile -> {
+                            val uid = (uiState as AuthUiState.NeedsProfile).uid
+                            navController.navigate(Route.RoleSelect.withUid(uid)) {
+                                popUpTo(0) { inclusive = true }
+                            }
+                            authViewModel.clearState()
+                        }
+
+                        is AuthUiState.SignUpSuccess -> {
+                            // SignUpScreen handles this — do nothing here
+                        }
+
+                        else -> {}
+                    }
+                }
             }
         }
     }

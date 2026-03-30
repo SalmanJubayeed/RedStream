@@ -17,4 +17,6 @@ object AppModule {
 
     @Provides @Singleton
     fun provideFirestore(): FirebaseFirestore = FirebaseFirestore.getInstance()
+    // RequestRepository is @Singleton + @Inject constructor
+    // so Hilt provides it automatically — no manual @Provides needed
 }
