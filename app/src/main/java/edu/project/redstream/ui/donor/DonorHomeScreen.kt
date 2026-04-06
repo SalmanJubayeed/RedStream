@@ -50,6 +50,12 @@ fun DonorHomeScreen(
         viewModel.loadFeed(bloodGroupFilter)
     }
 
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == 1) {
+            viewModel.loadMyApplications()
+        }
+    }
+
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = Color(0xFF1A1A1A)) {

@@ -50,11 +50,14 @@ class DonorViewModel @Inject constructor(
     val myApplications = MutableStateFlow<List<DonorApplication>>(emptyList())
 
     fun loadMyApplications() {
-        android.util.Log.d("DonorVM", "loadMyApplications called, uid: $currentUid")
+        android.util.Log.d("DonorVM", "loadMyApplications uid: '$currentUid'")
         viewModelScope.launch {
-            requestRepo.getMyApplicationsFlow(currentUid).collect {
-                android.util.Log.d("DonorVM", "Applications received: ${it.size}")
-                myApplications.value = it
+            requestRepo.getMyApplicationsFlow(currentUid).collect { list ->
+                android.util.Log.d("DonorVM", "applications count: ${list.size}")
+                list.forEach {
+                    android.util.Log.d("DonorVM", "app donorId: '${it.donorId}' status: ${it.status}")
+                }
+                myApplications.value = list
             }
         }
     }
