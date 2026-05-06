@@ -2,6 +2,7 @@ package edu.project.redstream.ui.donor
 
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -25,13 +26,10 @@ import edu.project.redstream.data.model.BLOOD_GROUPS
 import edu.project.redstream.data.model.BloodRequest
 import edu.project.redstream.data.model.DonorApplication
 import edu.project.redstream.ui.Route
-import edu.project.redstream.ui.recipient.RequestCard
-import edu.project.redstream.ui.shared.toExpiryLabel
+import edu.project.redstream.ui.shared.rememberCountdown
+import edu.project.redstream.ui.shared.rememberExpiryLabel
 import edu.project.redstream.ui.shared.toRelativeTime
 import edu.project.redstream.viewmodel.DonorViewModel
-import androidx.compose.foundation.clickable
-import edu.project.redstream.ui.shared.toCountdown
-
 
 @Composable
 fun DonorHomeScreen(
@@ -48,6 +46,11 @@ fun DonorHomeScreen(
 
     LaunchedEffect(bloodGroupFilter) {
         viewModel.loadFeed(bloodGroupFilter)
+    }
+
+    // Reload applications when switching to tab 1
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == 1) viewModel.loadMyApplications()
     }
 
     Scaffold(
@@ -95,6 +98,7 @@ fun DonorHomeScreen(
     }
 }
 
+// ── Feed Tab ──────────────────────────────────────────────────────────────────
 @Composable
 private fun FeedTab(
     modifier: Modifier,
@@ -104,10 +108,15 @@ private fun FeedTab(
     onRequestClick: (String) -> Unit
 ) {
     Column(
-        modifier.fillMaxSize().background(Color(0xFF0F0F0F)).padding(16.dp)
+        modifier
+            .fillMaxSize()
+            .background(Color(0xFF0F0F0F))
+            .padding(16.dp)
     ) {
-        Text("🩸 Blood Requests", fontSize = 22.sp,
-            color = Color.White, fontWeight = FontWeight.Bold)
+        Text(
+            "🩸 Blood Requests", fontSize = 22.sp,
+            color = Color.White, fontWeight = FontWeight.Bold
+        )
         Spacer(Modifier.height(12.dp))
 
         Text("Filter by blood group", color = Color.Gray, fontSize = 12.sp)
@@ -151,17 +160,18 @@ private fun FeedTab(
                     Spacer(Modifier.height(12.dp))
                     Text("No requests found", color = Color.Gray)
                     if (bloodGroupFilter != null)
-                        Text("No $bloodGroupFilter requests right now",
-                            color = Color(0xFF555555), fontSize = 13.sp)
+                        Text(
+                            "No $bloodGroupFilter requests right now",
+                            color = Color(0xFF555555), fontSize = 13.sp
+                        )
                 }
             }
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(requests) { request ->
-                    // RequestCard now shows posted time + expiry
                     DonorFeedCard(
-                        request  = request,
-                        onClick  = { onRequestClick(request.id) }
+                        request = request,
+                        onClick = { onRequestClick(request.id) }
                     )
                 }
             }
@@ -169,7 +179,7 @@ private fun FeedTab(
     }
 }
 
-// ── Donor feed card — shows posted time and expiry ────────────────────────────
+// ── Donor feed card ───────────────────────────────────────────────────────────
 @Composable
 private fun DonorFeedCard(request: BloodRequest, onClick: () -> Unit) {
     val urgencyColor = when (request.urgency) {
@@ -177,12 +187,17 @@ private fun DonorFeedCard(request: BloodRequest, onClick: () -> Unit) {
         "Medium" -> Color(0xFFF57C00)
         else     -> Color(0xFF2E7D32)
     }
+
+    // ── Live expiry label — updates every minute ──────────────────────────────
+    val expiryLabel by request.expiresAt?.let { rememberExpiryLabel(it) }
+        ?: remember { mutableStateOf("No expiry") }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },        // ← clickable on Modifier, not on Card
-        shape    = RoundedCornerShape(12.dp),
-        colors   = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+            .clickable { onClick() },
+        shape  = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(
@@ -195,8 +210,12 @@ private fun DonorFeedCard(request: BloodRequest, onClick: () -> Unit) {
                         .background(Color(0xFF3B0E0E), RoundedCornerShape(8.dp))
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Text(request.bloodGroupNeeded, color = Color(0xFFEF5350),
-                        fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                    Text(
+                        request.bloodGroupNeeded,
+                        color      = Color(0xFFEF5350),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize   = 16.sp
+                    )
                 }
                 Box(
                     Modifier
@@ -206,20 +225,31 @@ private fun DonorFeedCard(request: BloodRequest, onClick: () -> Unit) {
                         )
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
-                    Text(request.urgency, color = urgencyColor,
-                        fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        request.urgency,
+                        color      = urgencyColor,
+                        fontSize   = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
             Spacer(Modifier.height(10.dp))
-            Text(request.hospitalName, color = Color.White,
-                fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Text("${request.unitsNeeded} unit(s) needed",
-                color = Color.Gray, fontSize = 13.sp)
+            Text(
+                request.hospitalName,
+                color      = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize   = 14.sp
+            )
+            Text(
+                "${request.unitsNeeded} unit(s) needed",
+                color    = Color.Gray,
+                fontSize = 13.sp
+            )
 
             Spacer(Modifier.height(6.dp))
 
-            // Posted time
+            // Posted time (static — "2h ago" is fine without ticking)
             request.createdAt?.let {
                 Text(
                     "Posted ${it.toRelativeTime()}",
@@ -230,14 +260,12 @@ private fun DonorFeedCard(request: BloodRequest, onClick: () -> Unit) {
 
             Spacer(Modifier.height(4.dp))
 
-            // Expiry label
-            request.expiresAt?.let {
-                Text(
-                    it.toExpiryLabel(),
-                    color    = Color(0xFF4CAF50),
-                    fontSize = 11.sp
-                )
-            }
+            // Live expiry label
+            Text(
+                expiryLabel,
+                color    = Color(0xFF4CAF50),
+                fontSize = 11.sp
+            )
 
             Spacer(Modifier.height(6.dp))
             Text(request.contactPhone, color = Color(0xFF90CAF9), fontSize = 12.sp)
@@ -245,14 +273,17 @@ private fun DonorFeedCard(request: BloodRequest, onClick: () -> Unit) {
     }
 }
 
-// ── Applications tab ──────────────────────────────────────────────────────────
+// ── Applications Tab ──────────────────────────────────────────────────────────
 @Composable
 private fun ApplicationsTab(
     modifier: Modifier,
     applications: List<DonorApplication>
 ) {
     Column(
-        modifier.fillMaxSize().background(Color(0xFF0F0F0F)).padding(16.dp)
+        modifier
+            .fillMaxSize()
+            .background(Color(0xFF0F0F0F))
+            .padding(16.dp)
     ) {
         Text(
             "📋 My Applications", fontSize = 22.sp,
@@ -275,96 +306,105 @@ private fun ApplicationsTab(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(applications) { app ->
-                    val statusColor = when (app.status) {
-                        "APPROVED" -> Color(0xFF4CAF50)
-                        "REJECTED" -> Color(0xFFEF5350)
-                        else       -> Color(0xFFFFC107)
-                    }
-                    Card(
-                        Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFF1A1A1A)
-                        )
-                    ) {
-                        Column(Modifier.padding(14.dp)) {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment     = Alignment.CenterVertically
-                            ) {
-                                // Status badge
-                                Box(
-                                    Modifier
-                                        .background(
-                                            statusColor.copy(alpha = 0.15f),
-                                            RoundedCornerShape(20.dp)
-                                        )
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        app.status,
-                                        color      = statusColor,
-                                        fontSize   = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            Spacer(Modifier.height(6.dp))
-
-                            // Message if any
-                            if (app.message.isNotBlank())
-                                Text(
-                                    "\"${app.message}\"",
-                                    color    = Color.Gray,
-                                    fontSize = 12.sp
-                                )
-
-                            Spacer(Modifier.height(4.dp))
-
-                            // Applied time
-                            app.createdAt?.let {
-                                Text(
-                                    "Applied ${it.toRelativeTime()}",
-                                    color    = Color(0xFF555555),
-                                    fontSize = 11.sp
-                                )
-                            }
-                            app.donationDeadlineAt?.let { deadline ->
-                                val remaining = deadline.seconds * 1000L -
-                                        System.currentTimeMillis()
-                                if (remaining > 0) {
-                                    Spacer(Modifier.height(8.dp))
-                                    Row(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .background(
-                                                Color(0xFF1A1A3A),
-                                                RoundedCornerShape(6.dp)
-                                            )
-                                            .padding(
-                                                horizontal = 10.dp,
-                                                vertical   = 6.dp
-                                            ),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            "🩸 Donate within",
-                                            color    = Color(0xFF90CAF9),
-                                            fontSize = 11.sp
-                                        )
-                                        Text(
-                                            deadline.toCountdown(),
-                                            color      = Color(0xFF90CAF9),
-                                            fontSize   = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    ApplicationCard(app = app)
                 }
+            }
+        }
+    }
+}
+
+// ── Single application card with live countdown ───────────────────────────────
+@Composable
+private fun ApplicationCard(app: DonorApplication) {
+    val statusColor = when (app.status) {
+        "APPROVED" -> Color(0xFF4CAF50)
+        "REJECTED" -> Color(0xFFEF5350)
+        else       -> Color(0xFFFFC107)
+    }
+
+    // ── Live donation deadline countdown — ticks every second ─────────────────
+    val donationCountdown by app.donationDeadlineAt?.let { rememberCountdown(it) }
+        ?: remember { mutableStateOf("") }
+
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier
+                        .background(
+                            statusColor.copy(alpha = 0.15f),
+                            RoundedCornerShape(20.dp)
+                        )
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        app.status,
+                        color      = statusColor,
+                        fontSize   = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
+
+            if (app.message.isNotBlank())
+                Text(
+                    "\"${app.message}\"",
+                    color    = Color.Gray,
+                    fontSize = 12.sp
+                )
+
+            Spacer(Modifier.height(4.dp))
+
+            app.createdAt?.let {
+                Text(
+                    "Applied ${it.toRelativeTime()}",
+                    color    = Color(0xFF555555),
+                    fontSize = 11.sp
+                )
+            }
+
+            // Live countdown — only shown when approved and deadline exists
+            if (app.status == "APPROVED" &&
+                app.donationDeadlineAt != null &&
+                donationCountdown.isNotBlank() &&
+                donationCountdown != "Expired"
+            ) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1A1A3A), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "🩸 Donate within",
+                        color    = Color(0xFF90CAF9),
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        donationCountdown,
+                        color      = Color(0xFF90CAF9),
+                        fontSize   = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            } else if (donationCountdown == "Expired") {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "⏰ Donation window expired",
+                    color    = Color(0xFFEF5350),
+                    fontSize = 11.sp
+                )
             }
         }
     }
