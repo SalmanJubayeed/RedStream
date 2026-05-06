@@ -23,14 +23,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.google.firebase.Timestamp
 import edu.project.redstream.data.model.BLOOD_GROUPS
 import edu.project.redstream.data.model.BloodRequest
 import edu.project.redstream.ui.Route
-import edu.project.redstream.ui.shared.toCountdown
+import edu.project.redstream.ui.shared.rememberCountdown
 import edu.project.redstream.ui.shared.toRelativeTime
 import edu.project.redstream.viewmodel.RequestUiState
 import edu.project.redstream.viewmodel.RequestViewModel
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,7 +57,6 @@ fun MyRequestsScreen(
         }
     }
 
-    // Edit dialog
     editingRequest?.let { req ->
         EditRequestDialog(
             request   = req,
@@ -70,7 +69,6 @@ fun MyRequestsScreen(
         )
     }
 
-    // Delete confirmation
     showDeleteDialog?.let { req ->
         AlertDialog(
             onDismissRequest = { showDeleteDialog = null },
@@ -130,7 +128,6 @@ fun MyRequestsScreen(
             )
             Spacer(Modifier.height(12.dp))
 
-            // Active / Archive tab row
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor   = Color(0xFF1A1A1A),
@@ -159,8 +156,6 @@ fun MyRequestsScreen(
                     if (activeRequests.isEmpty()) {
                         EmptyState("📋", "No active requests", "Tap + to create one")
                     } else {
-                        // Latest first — list is already ordered by expiresAt ASC from
-                        // Firestore, reverse so newest createdAt shows first
                         val sorted = activeRequests.sortedByDescending {
                             it.createdAt?.toDate()?.time ?: 0L
                         }
@@ -182,8 +177,7 @@ fun MyRequestsScreen(
                 }
                 1 -> {
                     if (archivedRequests.isEmpty()) {
-                        EmptyState("🗄️", "No archived requests",
-                            "Expired requests appear here")
+                        EmptyState("🗄️", "No archived requests", "Expired requests appear here")
                     } else {
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             items(archivedRequests) { request ->
@@ -197,7 +191,7 @@ fun MyRequestsScreen(
     }
 }
 
-// ── Recipient request card — countdown + posted time + needed by ──────────────
+// ── Recipient request card ────────────────────────────────────────────────────
 @Composable
 fun RecipientRequestCard(
     request: BloodRequest,
@@ -205,46 +199,53 @@ fun RecipientRequestCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    // Tick every second so countdown refreshes live
-    var tick by remember { mutableStateOf(0) }
-    LaunchedEffect(Unit) {
-        while (true) { delay(1000); tick++ }
-    }
-
     val urgencyColor = when (request.urgency) {
         "High"   -> Color(0xFFC62828)
         "Medium" -> Color(0xFFF57C00)
         else     -> Color(0xFF2E7D32)
     }
 
-    // Time remaining out of needed-by window
-    val neededByMs      = request.neededByHours * 60 * 60 * 1000L
-    val postedMs        = request.createdAt?.toDate()?.time ?: System.currentTimeMillis()
-    val deadlineMs      = postedMs + neededByMs
-    val remainingMs     = deadlineMs - System.currentTimeMillis()
-    val isUrgent        = remainingMs in 0..3_600_000   // under 1 hour
-    val isExpired       = remainingMs <= 0
-    val neededByColor   = when {
+    // ── Needed-by countdown — build a Timestamp for the deadline ─────────────
+    val neededByMs   = request.neededByHours * 60 * 60 * 1000L
+    val postedMs     = request.createdAt?.toDate()?.time ?: System.currentTimeMillis()
+    val deadlineMs   = postedMs + neededByMs
+    val neededByTimestamp = remember(request.id, request.neededByHours) {
+        Timestamp(deadlineMs / 1000, 0)
+    }
+
+    // Live tick — replaces the manual tick + delay(1000) pattern
+    val neededByCountdown by rememberCountdown(neededByTimestamp)
+
+    val isExpired = deadlineMs - System.currentTimeMillis() <= 0
+    val isUrgent  = (deadlineMs - System.currentTimeMillis()) in 1..3_600_000
+    val neededByColor = when {
         isExpired -> Color(0xFF888888)
         isUrgent  -> Color(0xFFEF5350)
         else      -> Color(0xFFFFA726)
     }
 
+    // ── Donation deadline countdown (after donor approved) ────────────────────
+    val donationCountdown by request.donationDeadlineAt
+        ?.let { rememberCountdown(it) }
+        ?: remember { mutableStateOf("") }
+
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        shape    = RoundedCornerShape(12.dp),
-        colors   = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape  = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
     ) {
         Column(Modifier.padding(16.dp)) {
 
-            // Top row — blood group + edit/delete
+            // Top row — blood group + urgency + edit/delete
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment     = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Box(
@@ -303,7 +304,6 @@ fun RecipientRequestCard(
 
             Spacer(Modifier.height(8.dp))
 
-            // Posted time
             request.createdAt?.let {
                 Text(
                     "Posted ${it.toRelativeTime()}",
@@ -313,7 +313,7 @@ fun RecipientRequestCard(
 
             Spacer(Modifier.height(6.dp))
 
-            // Needed-by countdown — "Donation needed within Xh Ym Zs"
+            // ── Live needed-by countdown ──────────────────────────────────────
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -325,51 +325,46 @@ fun RecipientRequestCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
+                Text("🩸 Needed within", color = neededByColor, fontSize = 11.sp)
                 Text(
-                    "🩸 Needed within",
-                    color = neededByColor, fontSize = 11.sp
-                )
-                Text(
-                    if (isExpired) "Time passed"
-                    else {
-                        val h = remainingMs / 3_600_000
-                        val m = (remainingMs % 3_600_000) / 60_000
-                        val s = (remainingMs % 60_000) / 1_000
-                        when {
-                            h > 0  -> "${h}h ${m}m ${s}s"
-                            m > 0  -> "${m}m ${s}s"
-                            else   -> "${s}s"
-                        }
-                    },
+                    if (isExpired) "Time passed" else neededByCountdown,
                     color      = neededByColor,
                     fontSize   = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
 
-            // Donation deadline countdown (after a donor is approved)
-            request.donationDeadlineAt?.let { deadline ->
-                if (deadline.toDate().time > System.currentTimeMillis()) {
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF1A1A3A), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            "✅ Donor approved — due in",
-                            color = Color(0xFF90CAF9), fontSize = 11.sp
-                        )
-                        Text(
-                            deadline.toCountdown(),
-                            color      = Color(0xFF90CAF9),
-                            fontSize   = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+            // ── Live donation deadline countdown ──────────────────────────────
+            if (request.donationDeadlineAt != null &&
+                donationCountdown.isNotBlank() &&
+                donationCountdown != "Expired"
+            ) {
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1A1A3A), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "✅ Donor approved — due in",
+                        color = Color(0xFF90CAF9), fontSize = 11.sp
+                    )
+                    Text(
+                        donationCountdown,
+                        color      = Color(0xFF90CAF9),
+                        fontSize   = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
+            } else if (donationCountdown == "Expired") {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "⏰ Donation window expired",
+                    color    = Color(0xFFEF5350),
+                    fontSize = 11.sp
+                )
             }
         }
     }
@@ -437,7 +432,7 @@ fun EditRequestDialog(
         text  = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 ExposedDropdownMenuBox(
-                    expanded        = bgExpanded,
+                    expanded         = bgExpanded,
                     onExpandedChange = { bgExpanded = it }
                 ) {
                     OutlinedTextField(
@@ -447,10 +442,12 @@ fun EditRequestDialog(
                         trailingIcon = {
                             ExposedDropdownMenuDefaults.TrailingIcon(bgExpanded)
                         },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
                     )
                     ExposedDropdownMenu(
-                        expanded        = bgExpanded,
+                        expanded         = bgExpanded,
                         onDismissRequest = { bgExpanded = false }
                     ) {
                         BLOOD_GROUPS.forEach { bg ->
@@ -565,9 +562,11 @@ fun RequestCard(request: BloodRequest, onClick: () -> Unit) {
         else     -> Color(0xFF2E7D32)
     }
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        shape    = RoundedCornerShape(12.dp),
-        colors   = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape  = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(
