@@ -51,6 +51,10 @@ fun DonorHomeScreen(
     // Reload applications when switching to tab 1
     LaunchedEffect(selectedTab) {
         if (selectedTab == 1) viewModel.loadMyApplications()
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == 1) {
+            viewModel.loadMyApplications()
+        }
     }
 
     Scaffold(
